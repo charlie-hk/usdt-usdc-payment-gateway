@@ -1,0 +1,31 @@
+{
+  "name": "usdt-usdc-payment-gateway",
+  "version": "1.0.0",
+  "description": "Invoice-based USDT/USDC payment gateway for Ethereum (Sepolia): Solidity contract, QR checkout and merchant dashboard.",
+  "private": true,
+  "license": "MIT",
+  "author": "Ali Amini",
+  "keywords": ["solidity", "hardhat", "ethereum", "sepolia", "usdc", "usdt", "payments", "qr-code", "viem", "walletconnect"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "coverage": "hardhat coverage",
+    "node": "hardhat node",
+    "demo": "hardhat run scripts/demo-local.js",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
+    "verify:sepolia": "hardhat run scripts/verify.js --network sepolia",
+    "export-abi": "hardhat compile && node scripts/export-abi.js",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:build": "npm --prefix frontend run build",
+    "frontend:e2e": "npm --prefix frontend run e2e"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/contracts": "^5.6.1",
+    "dotenv": "^18.0.8",
+    "hardhat": "^2.29.1",
+    "solc": "0.8.24"
+  }
+}

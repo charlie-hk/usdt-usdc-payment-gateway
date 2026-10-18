@@ -1,0 +1,20 @@
+node_modules/
+.env
+.env.*
+!.env.example
+artifacts/
+cache/
+typechain-types/
+coverage/
+coverage.json
+frontend/dist/
+frontend/node_modules/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+.DS_Store
+*.log
+
+# Local-chain deployment records are throwaway; only the sepolia record belongs in the repo.
+deployments/localhost.json
+deployments/hardhat.json

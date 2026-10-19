@@ -1,1 +1,45 @@
-{ "chainId": 11155111, "gateway": null, "tokens": [] }
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deployedAt": "2026-10-19T08:54:01.140Z",
+  "deployer": "0x7F6f8d310dD5523D2B222c61Bb013c6a80ddB66E",
+  "owner": "0x7F6f8d310dD5523D2B222c61Bb013c6a80ddB66E",
+  "feeBps": 50,
+  "gateway": {
+    "address": "0x339A644b27bf8A034dE32DCB814426f5CcB4c97B",
+    "txHash": "0xa45a7aebaa99c6d3c8e5d49fa5e670174527079fa02c3f432db7b703a52374c4",
+    "blockNumber": 11947117,
+    "constructorArgs": [
+      "0x7F6f8d310dD5523D2B222c61Bb013c6a80ddB66E",
+      [
+        "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+        "0x26c8D3B7E403FA20955aB7Fe50fE6881eC99f47F"
+      ],
+      50
+    ]
+  },
+  "tokens": [
+    {
+      "key": "USDC",
+      "address": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+      "symbol": "USDC",
+      "name": "USDC",
+      "decimals": 6,
+      "mock": false,
+      "faucet": false,
+      "requiresAllowanceReset": false,
+      "permit": true
+    },
+    {
+      "key": "USDT",
+      "address": "0x26c8D3B7E403FA20955aB7Fe50fE6881eC99f47F",
+      "symbol": "mUSDT",
+      "name": "Mock Tether USD (test)",
+      "decimals": 6,
+      "mock": true,
+      "faucet": true,
+      "requiresAllowanceReset": true,
+      "permit": false
+    }
+  ]
+}

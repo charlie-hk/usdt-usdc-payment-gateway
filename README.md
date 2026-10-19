@@ -86,11 +86,12 @@ Verified by running it:
 - **48 contract tests** pass (`npx hardhat test`, local Hardhat network). `npx hardhat coverage` reports 100% statements, lines and functions and 91.46% branches for `PaymentGateway.sol` (same 48 tests).
 - **12 end-to-end checks** (`npm run frontend:e2e`) run the frontend's own contract layer (`frontend/src/lib`) against a local Hardhat node: create invoice, pay with USDT (including the allowance reset), pay with USDC, expiry, cancel, dashboard rows and fee, withdraw.
 - **Sepolia deployment**: `PaymentGateway` (block 11947117) and `MockUSDT` are deployed on Sepolia and their source is verified on Etherscan ("Exact Match", Solidity 0.8.24, optimizer 200 runs). Links in the table below. The gateway is wired to Circle's Sepolia USDC and `MockUSDT`, fee 50 bps.
+- **Real wallet on the live demo**: MetaMask connected to the hosted site on Sepolia and created an invoice (the first attempt failed on-chain and the second succeeded; the cause was not confirmed). Scanning the invoice QR with a phone opened the hosted checkout page. One run, one person, one device.
 - **Browser run**: headless Chromium (Playwright) with a mock wallet that signs through a local node drove the full UI: connect, create invoice and QR, customer checkout with faucet and payment, dashboard update, withdraw, cancel, QR dialog, cancelled / unknown / malformed invoice links, phone-width layout. No console errors.
 
 **Not** verified:
 
-- Real wallets (MetaMask and others), WalletConnect pairing (needs a project ID) and scanning the QR with a phone.
+- Paying an invoice and withdrawing on Sepolia with a real wallet. Only invoice creation was done there. WalletConnect pairing (needs a project ID) and wallets other than MetaMask were not tried either.
 - `payWithPermit` is tested at contract level against a mock; the UI uses `approve` + `pay`.
 - No static analysis tool (Slither or similar) has been run. No audit.
 

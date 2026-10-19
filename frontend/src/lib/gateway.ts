@@ -66,7 +66,33 @@ export function friendlyError(error: unknown): string {
     if (name) return `The contract rejected the call (${name}).`;
     return error.shortMessage;
   }
-  return error instanceof Error ? error.message : String(error);
+  if (error instanceof Error) return error.message;
+  return describeUnknown(error);
+}
+
+/**
+ * Wallets (MetaMask, WalletConnect) often reject with a plain object such as `{ code: 4001, message: '...' }`
+ * that is not an Error, so `String(error)` would print "[object Object]". Pull a readable text out of it.
+ */
+function describeUnknown(error: unknown): string {
+  if (typeof error === 'string') return error;
+  if (typeof error === 'object' && error !== null) {
+    const e = error as { code?: unknown; message?: unknown; reason?: unknown; data?: unknown; error?: unknown };
+    if (e.code === 4001 || e.code === 'ACTION_REJECTED') return 'You rejected the request in your wallet.';
+    if (e.code === -32002) return 'The wallet already has a pending request. Open it and approve or reject it first.';
+    if (e.code === 4100) return 'The wallet has not authorised this site yet. Connect the wallet again.';
+    for (const part of [e.message, e.reason, (e.data as { message?: unknown } | undefined)?.message]) {
+      if (typeof part === 'string' && part.trim()) return e.code !== undefined ? `${part} (wallet error ${String(e.code)})` : part;
+    }
+    if (e.error !== undefined && e.error !== error) return describeUnknown(e.error);
+    try {
+      const json = JSON.stringify(error);
+      if (json && json !== '{}') return `Unexpected wallet error: ${json}`;
+    } catch {
+      /* not serialisable */
+    }
+  }
+  return 'Unexpected error with no details. Open the browser console (F12) to see more.';
 }
 
 type ReplayCall = {

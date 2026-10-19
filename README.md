@@ -15,6 +15,10 @@ An invoice-based stablecoin payment gateway for Ethereum, built for the Sepolia 
 
 > **Testnet only. This code has not been audited.** Do not deploy it to mainnet or send it real funds.
 
+**Live demo (Sepolia testnet):** https://charlie-hk.github.io/usdt-usdc-payment-gateway/
+
+> **About the wallet warning.** Some wallets (MetaMask, for example) may show a "this site shows signs of phishing" screen when you connect. The demo is a new, unlisted site on the shared `github.io` domain, and wallets rate sites like that cautiously. It is hosted on GitHub Pages and built by [a public workflow](.github/workflows/pages.yml) from the code in this repository, so you can read exactly what it runs. Use a throwaway test account that holds only Sepolia test tokens, never a wallet with real funds, and check the contract address in every confirmation: the gateway is [`0x339A…c97B`](https://sepolia.etherscan.io/address/0x339A644b27bf8A034dE32DCB814426f5CcB4c97B#code).
+
 ## Screenshots
 
 Taken from a local run (Hardhat network, test tokens).

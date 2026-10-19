@@ -69,6 +69,27 @@ export function friendlyError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+type ReplayCall = {
+  account: Address;
+  address: Address;
+  abi: Abi;
+  functionName: string;
+  args: readonly unknown[];
+};
+
+/**
+ * Waits for a transaction to be mined. When it was mined but reverted, the receipt carries no reason,
+ * so the same call is replayed against that block to recover the contract's error. The thrown error is
+ * then a normal viem revert error, which `friendlyError` already turns into readable text.
+ */
+async function waitForSuccess(publicClient: PublicClient, hash: Hash, replay: ReplayCall): Promise<void> {
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  if (receipt.status === 'success') return;
+  // Throws the decoded revert error when the failure can be reproduced.
+  await publicClient.simulateContract({ ...replay, blockNumber: receipt.blockNumber } as never);
+  throw new Error(`The transaction reverted on-chain and the reason could not be recovered (${hash}).`);
+}
+
 /* -------------------------------------------------------------------------- */
 /*                                    Reads                                   */
 /* -------------------------------------------------------------------------- */
@@ -166,8 +187,14 @@ export async function createInvoice(
     functionName: 'createInvoice',
     args,
   });
-  const receipt = await ctx.publicClient.waitForTransactionReceipt({ hash });
-  if (receipt.status !== 'success') throw new Error('The transaction reverted.');
+  await waitForSuccess(ctx.publicClient, hash, {
+    account: ctx.account,
+    address: ctx.gateway,
+    abi: gatewayAbi,
+    functionName: 'createInvoice',
+    args,
+  });
+  const receipt = await ctx.publicClient.getTransactionReceipt({ hash });
 
   const logs = parseEventLogs({ abi: gatewayAbi, eventName: 'InvoiceCreated', logs: receipt.logs }).filter((log) =>
     sameAddress(log.address, ctx.gateway),
@@ -186,8 +213,13 @@ export async function cancelInvoice(ctx: WriteContext & { invoiceId: bigint }): 
     functionName: 'cancelInvoice',
     args: [ctx.invoiceId],
   });
-  const receipt = await ctx.publicClient.waitForTransactionReceipt({ hash });
-  if (receipt.status !== 'success') throw new Error('The transaction reverted.');
+  await waitForSuccess(ctx.publicClient, hash, {
+    account: ctx.account,
+    address: ctx.gateway,
+    abi: gatewayAbi,
+    functionName: 'cancelInvoice',
+    args: [ctx.invoiceId],
+  });
   return hash;
 }
 
@@ -200,22 +232,33 @@ export async function withdraw(ctx: WriteContext & { token: Address; to: Address
     functionName: 'withdraw',
     args: [ctx.token, ctx.to, ctx.amount],
   });
-  const receipt = await ctx.publicClient.waitForTransactionReceipt({ hash });
-  if (receipt.status !== 'success') throw new Error('The transaction reverted.');
+  await waitForSuccess(ctx.publicClient, hash, {
+    account: ctx.account,
+    address: ctx.gateway,
+    abi: gatewayAbi,
+    functionName: 'withdraw',
+    args: [ctx.token, ctx.to, ctx.amount],
+  });
   return hash;
 }
 
 export async function faucet(ctx: WriteContext & { token: TokenInfo; amount: bigint }): Promise<Hash> {
+  const faucetAbi = [{ type: 'function', name: 'faucet', stateMutability: 'nonpayable', inputs: [{ name: 'amount', type: 'uint256' }], outputs: [] }] as const;
   const hash = await ctx.walletClient.writeContract({
     account: ctx.account,
     chain: ctx.chain,
     address: ctx.token.address,
-    abi: [{ type: 'function', name: 'faucet', stateMutability: 'nonpayable', inputs: [{ name: 'amount', type: 'uint256' }], outputs: [] }],
+    abi: faucetAbi,
     functionName: 'faucet',
     args: [ctx.amount],
   });
-  const receipt = await ctx.publicClient.waitForTransactionReceipt({ hash });
-  if (receipt.status !== 'success') throw new Error('The transaction reverted.');
+  await waitForSuccess(ctx.publicClient, hash, {
+    account: ctx.account,
+    address: ctx.token.address,
+    abi: faucetAbi as unknown as Abi,
+    functionName: 'faucet',
+    args: [ctx.amount],
+  });
   return hash;
 }
 
@@ -248,8 +291,13 @@ export async function payInvoice(
       functionName: 'approve',
       args: [gateway, value],
     });
-    const receipt = await publicClient.waitForTransactionReceipt({ hash });
-    if (receipt.status !== 'success') throw new Error('The approval transaction reverted.');
+    await waitForSuccess(publicClient, hash, {
+      account,
+      address: token.address,
+      abi: erc20Abi as unknown as Abi,
+      functionName: 'approve',
+      args: [gateway, value],
+    });
     return hash;
   };
 
@@ -292,8 +340,13 @@ export async function payInvoice(
     args: [invoice.id],
   });
   ctx.onStep?.('pay', hash);
-  const receipt = await publicClient.waitForTransactionReceipt({ hash });
-  if (receipt.status !== 'success') throw new Error('The payment transaction reverted.');
+  await waitForSuccess(publicClient, hash, {
+    account,
+    address: gateway,
+    abi: gatewayAbi,
+    functionName: 'pay',
+    args: [invoice.id],
+  });
   return hash;
 }
 

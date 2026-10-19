@@ -83,7 +83,7 @@ The QR code encodes a **link** to the checkout page, not a raw ERC-20 transfer (
 
 Verified by running it:
 
-- **48 contract tests** pass (`npx hardhat test`, local Hardhat network). `npx hardhat coverage` reports 100% statements, lines and functions and 91.46% branches for `PaymentGateway.sol` (same 48 tests).
+- **48 contract tests** pass (`npx hardhat test`, local Hardhat network). `npx hardhat coverage` reports 100% statements, lines and functions and 91.46% branches for `PaymentGateway.sol` (same 48 tests). The test-only token mocks in `contracts/mocks/` are excluded from the report (see `.solcover.js`); they are not production code.
 - **12 end-to-end checks** (`npm run frontend:e2e`) run the frontend's own contract layer (`frontend/src/lib`) against a local Hardhat node: create invoice, pay with USDT (including the allowance reset), pay with USDC, expiry, cancel, dashboard rows and fee, withdraw.
 - **Sepolia deployment**: `PaymentGateway` (block 11947117) and `MockUSDT` are deployed on Sepolia and their source is verified on Etherscan ("Exact Match", Solidity 0.8.24, optimizer 200 runs). Links in the table below. The gateway is wired to Circle's Sepolia USDC and `MockUSDT`, fee 50 bps.
 - **Real wallet on the live demo**: MetaMask connected to the hosted site on Sepolia and created an invoice (the first attempt failed on-chain and the second succeeded; the cause was not confirmed). Scanning the invoice QR with a phone opened the hosted checkout page. One run, one person, one device.

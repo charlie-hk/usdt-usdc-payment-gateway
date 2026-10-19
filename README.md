@@ -81,11 +81,11 @@ Verified by running it:
 
 - **48 contract tests** pass (`npx hardhat test`, local Hardhat network). `npx hardhat coverage` reports 100% statements, lines and functions and 91.46% branches for `PaymentGateway.sol` (same 48 tests).
 - **12 end-to-end checks** (`npm run frontend:e2e`) run the frontend's own contract layer (`frontend/src/lib`) against a local Hardhat node: create invoice, pay with USDT (including the allowance reset), pay with USDC, expiry, cancel, dashboard rows and fee, withdraw.
+- **Sepolia deployment**: `PaymentGateway` (block 11947117) and `MockUSDT` are deployed on Sepolia and their source is verified on Etherscan ("Exact Match", Solidity 0.8.24, optimizer 200 runs). Links in the table below. The gateway is wired to Circle's Sepolia USDC and `MockUSDT`, fee 50 bps.
 - **Browser run**: headless Chromium (Playwright) with a mock wallet that signs through a local node drove the full UI: connect, create invoice and QR, customer checkout with faucet and payment, dashboard update, withdraw, cancel, QR dialog, cancelled / unknown / malformed invoice links, phone-width layout. No console errors.
 
 **Not** verified:
 
-- Deployment to Sepolia and Etherscan verification. The scripts are written but need a deployer key, an RPC URL and an Etherscan key, so they have not been run by the author of this README. The table below stays empty until a deployment is made.
 - Real wallets (MetaMask and others), WalletConnect pairing (needs a project ID) and scanning the QR with a phone.
 - `payWithPermit` is tested at contract level against a mock; the UI uses `approve` + `pay`.
 - No static analysis tool (Slither or similar) has been run. No audit.
@@ -94,9 +94,9 @@ Verified by running it:
 
 | Item | Address |
 | --- | --- |
-| PaymentGateway (Sepolia) | _not deployed yet_ |
+| PaymentGateway (Sepolia) | [`0x339A644b27bf8A034dE32DCB814426f5CcB4c97B`](https://sepolia.etherscan.io/address/0x339A644b27bf8A034dE32DCB814426f5CcB4c97B#code) |
 | USDC | Circle's Sepolia USDC (see below) |
-| Mock USDT | _not deployed yet_ |
+| Mock USDT | [`0x26c8D3B7E403FA20955aB7Fe50fE6881eC99f47F`](https://sepolia.etherscan.io/address/0x26c8D3B7E403FA20955aB7Fe50fE6881eC99f47F#code) |
 
 ## Tokens on Sepolia
 
@@ -145,7 +145,7 @@ To run the contract-layer end-to-end script against that chain: `npm run fronten
 
    This deploys `MockUSDT` and the gateway and writes `deployments/sepolia.json` and `frontend/public/deployment.json` (the file the frontend reads at runtime). When `ETHERSCAN_API_KEY` is set it then waits for 5 confirmations and verifies the contracts on Etherscan; if verification fails, repeat it with `npm run verify:sepolia`.
 3. Optional settings in `.env`: `OWNER_ADDRESS`, `FEE_BPS` (default 50 = 0.50%, max 500), `USDC_ADDRESS`, `USDT_ADDRESS`, `USE_MOCK_USDC`.
-4. Fill in the deployment table above with the addresses from `deployments/sepolia.json`.
+4. Put the addresses from `deployments/sepolia.json` into the deployment table above.
 
 ### Frontend
 

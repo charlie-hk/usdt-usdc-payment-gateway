@@ -3,6 +3,7 @@
 import {
   BaseError,
   ContractFunctionRevertedError,
+  HttpRequestError,
   UserRejectedRequestError,
   erc20Abi,
   getAbiItem,
@@ -64,6 +65,14 @@ export function friendlyError(error: unknown): string {
     const name = revertName(error);
     if (name && ERROR_TEXT[name]) return ERROR_TEXT[name];
     if (name) return `The contract rejected the call (${name}).`;
+    const httpError = error.walk((e) => e instanceof HttpRequestError);
+    if (httpError instanceof HttpRequestError) {
+      // The default shortMessage is just "HTTP request failed.", which gives no hint of why
+      // (rate limiting vs. a dead endpoint vs. a bad request). Surface the status code so a
+      // future failure can be diagnosed from the on-page message alone, no devtools needed.
+      const status = httpError.status ? ` (status ${httpError.status})` : '';
+      return `${httpError.shortMessage}${status} The RPC endpoint may be rate-limiting or temporarily unavailable; wait a moment and try again.`;
+    }
     return error.shortMessage;
   }
   if (error instanceof Error) return error.message;
@@ -382,14 +391,41 @@ export async function payInvoice(
 
 const eventItem = (name: string) => getAbiItem({ abi: gatewayAbi, name }) as AbiEvent;
 
-/** getLogs over a long block range, shrinking the window when the RPC provider rejects it. */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Some RPC providers report their own eth_getLogs block-range cap in the error text
+ * (the free thirdweb endpoint this app defaults to says "Maximum allowed number of
+ * requested blocks is 1000"). Pulling that number out lets us jump straight to a safe
+ * window instead of halving blindly from a much larger starting point.
+ */
+function parseMaxBlockRange(error: unknown): bigint | undefined {
+  const message = error instanceof BaseError ? error.details ?? error.shortMessage : error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+  const match =
+    message.match(/maximum allowed (?:number of requested blocks|range)[^\d]*(\d+)/i) ??
+    message.match(/(\d+)\s*blocks?\s*(?:max|limit)/i);
+  if (!match) return undefined;
+  const value = BigInt(match[1]);
+  return value > 1n ? value - 1n : value; // stay one under the provider's own cap
+}
+
+/**
+ * getLogs over a long block range, shrinking the window when the RPC provider rejects it.
+ * Starts at a conservative 900-block window (under the common 1000-block cap of free/public
+ * RPCs) rather than 50,000, so a cold load doesn't burn several guaranteed-to-fail attempts
+ * before narrowing in, and backs off briefly between retries so the retry loop itself doesn't
+ * look like a burst of abuse to a rate-limited endpoint.
+ */
 async function getLogsChunked(
   client: PublicClient,
   params: { address: Address; event: AbiEvent; args: Record<string, unknown>; fromBlock: bigint; toBlock: bigint },
 ) {
   const out: Awaited<ReturnType<PublicClient['getLogs']>> = [];
   let from = params.fromBlock;
-  let step = 50_000n;
+  let step = 900n;
+  let attempt = 0;
   while (from <= params.toBlock) {
     const to = from + step - 1n > params.toBlock ? params.toBlock : from + step - 1n;
     try {
@@ -402,9 +438,20 @@ async function getLogsChunked(
       });
       out.push(...logs);
       from = to + 1n;
+      attempt = 0;
     } catch (error) {
-      if (step <= 500n) throw error;
-      step = step / 2n;
+      attempt += 1;
+      const suggested = parseMaxBlockRange(error);
+      if (suggested !== undefined && suggested < step) {
+        step = suggested;
+      } else if (step <= 250n) {
+        throw error;
+      } else {
+        step = step / 2n;
+      }
+      // Exponential backoff with jitter: gives a rate-limited free RPC room to recover
+      // instead of hammering it with back-to-back retries.
+      await sleep(Math.min(250 * 2 ** (attempt - 1), 2000) + Math.floor(Math.random() * 150));
     }
   }
   return out;
@@ -429,12 +476,15 @@ export async function scanMerchantEvents(
   const latest = toBlock ?? (await client.getBlockNumber({ cacheTime: 0 }));
   if (fromBlock > latest) return { created: [], paid: [], cancelled: [], toBlock: latest };
 
+  // Sequential, not Promise.all: on a cold load (first scan since deployment) each of these
+  // can itself take several chunked requests against a free, rate-limited RPC. Running all
+  // three event scans at once triples the burst of simultaneous requests right when the
+  // provider is most likely to throttle; one at a time costs a bit of wall-clock time but
+  // is far less likely to trip a rate limit.
   const base = { address: gateway, fromBlock, toBlock: latest };
-  const [createdLogs, paidLogs, cancelledLogs] = await Promise.all([
-    getLogsChunked(client, { ...base, event: eventItem('InvoiceCreated'), args: { merchant } }),
-    getLogsChunked(client, { ...base, event: eventItem('InvoicePaid'), args: { merchant } }),
-    getLogsChunked(client, { ...base, event: eventItem('InvoiceCancelled'), args: { merchant } }),
-  ]);
+  const createdLogs = await getLogsChunked(client, { ...base, event: eventItem('InvoiceCreated'), args: { merchant } });
+  const paidLogs = await getLogsChunked(client, { ...base, event: eventItem('InvoicePaid'), args: { merchant } });
+  const cancelledLogs = await getLogsChunked(client, { ...base, event: eventItem('InvoiceCancelled'), args: { merchant } });
 
   type Args = Record<string, unknown>;
   return {

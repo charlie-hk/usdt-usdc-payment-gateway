@@ -263,12 +263,13 @@ function mountDashboard(
       cancelled.push(...events.cancelled);
       scannedTo = events.toBlock;
 
+      // Sequential, not Promise.all: keeps this from landing on the RPC at the same moment
+      // as the tail end of the event scan above, which is when a free/rate-limited endpoint
+      // is most likely to still be recovering from that scan's chunked requests.
       const next = new Map<string, bigint>();
-      await Promise.all(
-        ctx.tokens.map(async (t) => {
-          next.set(t.address, await readMerchantBalance(ctx.publicClient, gateway, merchant, t.address));
-        }),
-      );
+      for (const t of ctx.tokens) {
+        next.set(t.address, await readMerchantBalance(ctx.publicClient, gateway, merchant, t.address));
+      }
       balances = next;
       loadError = '';
     } catch (error) {

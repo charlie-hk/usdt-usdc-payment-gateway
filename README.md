@@ -173,7 +173,7 @@ The build uses relative paths and hash routing (`#/pay/12`), so it works on any 
 - **Anyone can be a merchant**: there is no allowlist. The checkout page shows the merchant address and amount; a customer should confirm them before paying.
 - **Exact amounts only**: no partial payments, overpayments or refunds in this version.
 - **Expiry** uses `block.timestamp`, so it is accurate to a block, not to the second.
-- **Dashboard history** is read from event logs starting at the deployment block, in windows that shrink when the RPC provider rejects a range. Free RPC plans can still be slow on long histories.
+- **Dashboard history** is read from event logs starting at the deployment block, in windows sized near the free RPC's own range cap and backed off between retries, so a cold load doesn't burn repeated failed requests. If the RPC still fails, the on-page error message now includes its HTTP status. Free RPC plans can still be slow on long histories.
 - **Order labels** typed by the merchant are stored on-chain only as a hash; the readable text lives in the merchant's browser (`localStorage`).
 - Rebasing and fee-on-transfer tokens are not supported.
 

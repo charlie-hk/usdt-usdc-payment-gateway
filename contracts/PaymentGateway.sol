@@ -4,9 +4,12 @@ pragma solidity ^0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
  * @title PaymentGateway
@@ -32,8 +35,9 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
  *     recipient, so tokens sent here by mistake can be swept without ever
  *     touching customer funds.
  */
-contract PaymentGateway is Ownable2Step, Pausable, ReentrancyGuard {
+contract PaymentGateway is ERC721, Ownable2Step, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
+    using Strings for uint256;
 
     /*//////////////////////////////////////////////////////////////
                                  TYPES
@@ -131,6 +135,7 @@ contract PaymentGateway is Ownable2Step, Pausable, ReentrancyGuard {
     //////////////////////////////////////////////////////////////*/
 
     constructor(address initialOwner, address[] memory initialTokens, uint16 initialFeeBps)
+        ERC721("PaymentGateway Receipt", "PGR")
         Ownable(initialOwner)
     {
         for (uint256 i = 0; i < initialTokens.length; i++) {
@@ -253,6 +258,31 @@ contract PaymentGateway is Ownable2Step, Pausable, ReentrancyGuard {
         return (amount * feeBps) / BPS_DENOMINATOR;
     }
 
+    /// @notice On-chain metadata for the receipt NFT minted to the payer of `tokenId` (== invoiceId).
+    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+        _requireOwned(tokenId);
+        Invoice memory invoice = _invoices[tokenId];
+
+        string memory json = string.concat(
+            '{"name":"Payment Receipt #',
+            tokenId.toString(),
+            '","description":"Proof of payment for invoice #',
+            tokenId.toString(),
+            '.","attributes":[',
+            '{"trait_type":"Merchant","value":"',
+            Strings.toHexString(invoice.merchant),
+            '"},{"trait_type":"Token","value":"',
+            Strings.toHexString(invoice.token),
+            '"},{"trait_type":"Amount","value":"',
+            invoice.amount.toString(),
+            '"},{"trait_type":"Paid At","value":',
+            uint256(invoice.paidAt).toString(),
+            "}]}"
+        );
+
+        return string.concat("data:application/json;base64,", Base64.encode(bytes(json)));
+    }
+
     /*//////////////////////////////////////////////////////////////
                                  ADMIN
     //////////////////////////////////////////////////////////////*/
@@ -343,6 +373,11 @@ contract PaymentGateway is Ownable2Step, Pausable, ReentrancyGuard {
         if (received != amount) revert UnexpectedTransferAmount(amount, received);
 
         emit InvoicePaid(invoiceId, merchant, msg.sender, token, amount, fee);
+
+        // Receipt NFT, tokenId == invoiceId. Plain _mint, not _safeMint: the payer
+        // just completed a real token transfer, so no onERC721Received callback
+        // (and the reentrancy surface it would open) is needed here.
+        _mint(msg.sender, invoiceId);
     }
 
     function _setSupportedToken(address token, bool supported) private {

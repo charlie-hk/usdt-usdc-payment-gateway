@@ -12,8 +12,9 @@ An invoice-based stablecoin payment gateway for Ethereum, built for the Sepolia 
 - **Smart contract** (`PaymentGateway.sol`): merchants create invoices in USDT or USDC, customers pay them, the contract holds the funds, merchants withdraw.
 - **QR checkout**: every invoice gets a QR code that opens a checkout page where the customer pays from their own wallet (browser extension or WalletConnect).
 - **Merchant dashboard**: live list of invoices (pending, paid, cancelled, expired), per-token totals and fees, withdraw and cancel buttons.
+- **Receipt NFT**: paying an invoice mints the customer a non-transferable-by-convention ERC-721 receipt (`tokenId == invoiceId`), with on-chain metadata (merchant, token, amount, paid-at timestamp) — proof of payment that lives in the customer's own wallet, not just an event log.
 
-> **Testnet only. This code has not been audited.** Do not deploy it to mainnet or send it real funds.
+> **Testnet only. This code has not had an independent third-party audit** — only a self-audit with static analysis (see [`SECURITY-SELF-AUDIT.md`](SECURITY-SELF-AUDIT.md)). Do not deploy it to mainnet or send it real funds.
 
 **Live demo (Sepolia testnet):** https://charlie-hk.github.io/usdt-usdc-payment-gateway/
 
@@ -65,6 +66,8 @@ The QR code encodes a **link** to the checkout page, not a raw ERC-20 transfer (
 | `totalHeld` accounting + `sweepUnaccounted` | Tokens sent to the contract by mistake can be recovered, and the function can never touch merchant balances or accrued fees. |
 | Fee fixed at payment time, capped at 5% | A later fee change never alters what a merchant already earned. |
 | Two-step ownership, `renounceOwnership` disabled | Avoids handing admin rights to a wrong address or stranding accrued fees. |
+| Receipt NFT minted with `_mint`, not `_safeMint` | By the time it mints, the payer has already completed a real `transferFrom`. Skipping the `onERC721Received` callback removes a reentrancy surface instead of opening one. |
+| Receipt metadata fully on-chain (`tokenURI` returns a base64 data URI) | No off-chain metadata server to go down or be censored; the receipt stays readable for as long as the chain does. |
 
 ### Contract reference
 
@@ -78,12 +81,13 @@ The QR code encodes a **link** to the checkout page, not a raw ERC-20 transfer (
 | `getInvoice`, `isPayable`, `quoteFee`, `merchantBalance`, `feeBalance` | view | Reads. |
 | `setSupportedToken`, `setFeeBps`, `pause`, `unpause` | owner | Configuration. |
 | `withdrawFees`, `sweepUnaccounted` | owner | Collect accrued fees; recover tokens sent by mistake. |
+| `tokenURI(tokenId)`, `ownerOf(tokenId)`, `balanceOf(address)` | view | Standard ERC-721 reads for the receipt NFT. `tokenId` always equals the `invoiceId` it was minted for; `tokenURI` reverts until that invoice is paid. |
 
 ## What has and has not been verified
 
 Verified by running it:
 
-- **48 contract tests** pass (`npx hardhat test`, local Hardhat network). `npx hardhat coverage` reports 100% statements, lines and functions and 91.46% branches for `PaymentGateway.sol` (same 48 tests). The test-only token mocks in `contracts/mocks/` are excluded from the report (see `.solcover.js`); they are not production code.
+- **52 contract tests** pass (`npx hardhat test`, local Hardhat network): 48 for the payment flow plus 4 for the receipt NFT (mint-on-pay, no mint for an unpaid invoice, `tokenURI` before/after payment, independent mints across invoices). `npx hardhat coverage` reports 100% statements, lines and functions and 91.46% branches for `PaymentGateway.sol` across all 52 tests, including the receipt-NFT code paths. The test-only token mocks in `contracts/mocks/` are excluded from the report (see `.solcover.js`); they are not production code.
 - **12 end-to-end checks** (`npm run frontend:e2e`) run the frontend's own contract layer (`frontend/src/lib`) against a local Hardhat node: create invoice, pay with USDT (including the allowance reset), pay with USDC, expiry, cancel, dashboard rows and fee, withdraw.
 - **Sepolia deployment**: `PaymentGateway` (block 11947117) and `MockUSDT` are deployed on Sepolia and their source is verified on Etherscan ("Exact Match", Solidity 0.8.24, optimizer 200 runs). Links in the table below. The gateway is wired to Circle's Sepolia USDC and `MockUSDT`, fee 50 bps.
 - **Real wallet on the live demo**: MetaMask connected to the hosted site on Sepolia and created an invoice (the first attempt failed on-chain and the second succeeded; the cause was not confirmed). Scanning the invoice QR with a phone opened the hosted checkout page. One run, one person, one device.
@@ -93,7 +97,8 @@ Verified by running it:
 
 - Paying an invoice and withdrawing on Sepolia with a real wallet. Only invoice creation was done there. WalletConnect pairing (needs a project ID) and wallets other than MetaMask were not tried either.
 - `payWithPermit` is tested at contract level against a mock; the UI uses `approve` + `pay`.
-- No static analysis tool (Slither or similar) has been run. No audit.
+- The receipt NFT has not been deployed to or tested on Sepolia, and the frontend does not yet display it.
+- **Static analysis**: Slither has been run against the full contract and every finding touching `PaymentGateway.sol` reviewed (see [`SECURITY-SELF-AUDIT.md`](SECURITY-SELF-AUDIT.md) — no High/Critical findings). This is a self-audit by the author, not an independent third-party audit, and should not be read as one.
 
 ### Live deployment
 
@@ -115,7 +120,7 @@ Requires Node.js 20 or newer.
 
 ```bash
 npm ci
-npm test                 # 48 contract tests
+npm test                 # 52 contract tests
 npm run coverage         # coverage report in ./coverage
 npm run demo             # create, pay and withdraw one invoice, printed to the console
 ```
@@ -181,9 +186,11 @@ The build uses relative paths and hash routing (`#/pay/12`), so it works on any 
 
 ```
 contracts/
-  PaymentGateway.sol        the gateway
+  PaymentGateway.sol        the gateway (ERC-721 receipt NFT included)
   mocks/                    MockUSDC (EIP-2612), MockUSDT (USDT quirks), MockFeeToken (test only)
-test/PaymentGateway.test.js 48 tests
+test/
+  PaymentGateway.test.js    48 tests
+  ReceiptNFT.test.js        4 tests, receipt NFT mint / tokenURI behaviour
 scripts/
   deploy.js                 deploy + record + Etherscan verification
   verify.js                 re-run verification from deployments/<network>.json
@@ -196,6 +203,7 @@ frontend/
   public/deployment.json    addresses the frontend reads at runtime
 deployments/                deployment records
 docs/                       cover image and screenshots
+SECURITY-SELF-AUDIT.md      Slither findings reviewed against PaymentGateway.sol, self-audit only
 ```
 
 ## License

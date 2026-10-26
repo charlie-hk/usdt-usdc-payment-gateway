@@ -1,11 +1,11 @@
 {
   "name": "usdt-usdc-payment-gateway",
   "version": "1.0.0",
-  "description": "Invoice-based USDT/USDC payment gateway for Ethereum (Sepolia): Solidity contract, QR checkout and merchant dashboard.",
+  "description": "Invoice-based USDT/USDC payment gateway for Ethereum (Sepolia): Solidity contract, QR checkout, merchant dashboard and an on-chain ERC-721 payment receipt.",
   "private": true,
   "license": "MIT",
   "author": "Ali Amini",
-  "keywords": ["solidity", "hardhat", "ethereum", "sepolia", "usdc", "usdt", "payments", "qr-code", "viem", "walletconnect"],
+  "keywords": ["solidity", "hardhat", "ethereum", "sepolia", "usdc", "usdt", "payments", "qr-code", "viem", "walletconnect", "erc721", "nft"],
   "engines": { "node": ">=20" },
   "scripts": {
     "compile": "hardhat compile",
